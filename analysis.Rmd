@@ -1,0 +1,129 @@
+---
+title: "analysis"
+author: "Zheyan"
+date: "2022-12-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(pcalg)
+library(huge)
+library(Hmisc)
+library(corrplot)
+library(MASS)
+library(dagitty)
+library(lavaan)
+library(graph)
+library(gRbase)
+library(gRim)
+library(MXM)
+```
+
+## Data processing
+
+```{r}
+data("gmG", package = "pcalg")
+df_raw = read_csv('data/Country-data.csv')
+df = 
+  df_raw 
+
+df_cor = 
+  df %>% 
+  as.matrix() %>%
+  rcorr(type = "spearman")
+```
+
+## Data visualization
+
+Correlation plot
+
+```{r}
+corrplot(cor(df), order = 'AOE') # after 'AOE' reorder
+```
+
+## PC algorithm 
+
+alpha = 0.001
+
+```{r}
+suffStat <- list(C = df_cor$r, n = nrow(df))
+pc.fit = 
+  pc(suffStat, indepTest = gaussCItest,
+  labels = colnames(df), alpha = 0.001)
+
+pc.fit
+
+plot(pc.fit, main = "Estimated CPDAG")
+```
+## GES algorithm 
+
+```{r}
+score <- new("GaussL0penObsScore", df)
+ges.fit <- ges(score,  adaptive = c("none",
+"vstructures", "triples"), phase = c("forward",
+"backward", "turning"), iterate = TRUE, maxDegree = integer(0))
+plot(ges.fit$essgraph, main = ""); box(col="gray")
+
+```
+
+```{r}
+ges.fit <- ges(score,  adaptive = c("none",
+"vstructures", "triples"), phase = c("forward", "backward"), iterate = FALSE, maxDegree = integer(0))
+plot(ges.fit$essgraph, main = ""); box(col="gray")
+```
+
+## Backdoor selection
+
+```{r}
+g <- dagitty( "dag{ 
+  D -> E -> A <- B <- G <- F -> H;
+  G -> H;
+  C -> H; C-> B; C->F; C-> E
+  E -> F
+}" )
+
+g <- dagitty( "dag{ 
+  life_expec -> child_mort -> total_fer;
+  income -> gdpp -> child_mort -> total_fer;
+  gdpp -> income;
+  income -> exports -> imports;
+}" )
+
+df_g = simulateSEM(g, N = 10000, standardized = TRUE)
+plot(g)
+```
+
+Sufficient adjustment sets
+
+```{r}
+adjustmentSets(g, exposure = 'imports', outcome = 'child_mort', type = 'all')
+```
+
+
+## Linear regression
+
+```{r}
+summary(lm(child_mort ~ income + life_expec + total_fer, data=df))
+```
+
+## Cross validation
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
